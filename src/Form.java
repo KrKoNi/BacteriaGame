@@ -8,8 +8,8 @@ import java.util.ArrayList;
 
 public class Form extends JFrame implements Runnable {
 
-    private final int w = 1920;
-    private final int h = 1080;
+    private final int w = 1280;
+    private final int h = 720;
 
     private final int FRAMES_TOTAL = 100000;
     private final int SKIP_FRAMES = 1;
@@ -17,10 +17,11 @@ public class Form extends JFrame implements Runnable {
     private final Color BG = new Color(200, 200, 200, 255);
     private final Color BLUE = new Color(150, 160, 255, 255);
     private final Color RED = new Color(255, 100, 120, 255);
+    private final Color GREEN = new Color(150, 255, 160, 255);
     private BufferedImage buf = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
     private BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
     private BufferedImage graph = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-    private BufferedImage sprites[] = new BufferedImage[2];
+    private BufferedImage sprites[] = new BufferedImage[3];
     private final AffineTransform IDENTITY = new AffineTransform();
 
     private ArrayList<Bacterium> bacteria = new ArrayList<>();
@@ -43,10 +44,10 @@ public class Form extends JFrame implements Runnable {
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         this.setLocation(50, 50);
         this.add(new JLabel(new ImageIcon(img)));
-        for(int i = 0; i < 1; i++) {
-            Bacterium a = new Bacterium(0, (float)(Math.random() * (w - 100) + 50), (float)(Math.random() * (h - 100) + 50));
-            bacteria.add(a);
-        }
+
+        Bacterium a = new Bacterium(0, (float)(Math.random() * (w - 100) + 50), (float)(Math.random() * (h - 100) + 50));
+        bacteria.add(a);
+
     }
 
     @Override
@@ -75,30 +76,21 @@ public class Form extends JFrame implements Runnable {
         Graphics2D g2 = image.createGraphics();
         if(bacteria.size() > 0) {
             int type0 = (int)bacteria.stream().filter(a -> a.type == 0).count();
-            int type1 = bacteria.size() - type0;
+            int type1 = (int)bacteria.stream().filter(a -> a.type == 1).count();
+            int type2 = bacteria.size() - type0 - type1;
             int py = type0;
             if (py > h - 1) py = h - 1;
             int py1 = type1;
             if (py1 > h - 1) py1 = h - 1;
+            int py2 = type2;
+            if (py2 > h - 1) py2 = h - 1;
             int px = (int) ((float) frame / FRAMES_TOTAL * (w - 1));
             g2.setColor(BLUE);
             g2.fillRect(px, h - py - 1, 1, py);
             g2.setColor(RED);
-            g2.fillRect(px, h - py1 - 450, 1, py1);
-//            int[] speeds = new int[100];
-//            int[] slips = new int[100];
-//            for (Bacterium a : bacteria) {
-//                speeds[(int)(a.speed * 10) - 1]++;
-//                slips[(int)(a.slip * 100) - 1]++;
-//            }
-//            g2.setColor(BG);
-//            g2.fillRect(0, 0, w, h - 400);
-
-//            for (int i = 0; i < 100; i++) {
-//                g2.setColor(Color.getHSBColor(i / 100f, 1f, 0.5f));
-//                if(speeds[i] > 0) g2.fillRect(i * 5, h - 400 - speeds[i] * 5, 5, speeds[i] * 5);
-//            }
-//            ImageIO.write(image, "png", new File("graph/G" + (frame / SKIP_FRAMES) + ".png"));
+            g2.fillRect(px, h - py1 - 225, 1, py1);
+            g2.setColor(GREEN);
+            g2.fillRect(px, h - py2 - 450, 1, py2);
         }
     }
 
@@ -196,7 +188,7 @@ public class Form extends JFrame implements Runnable {
                     float minFoodDist = (w * w) + (h * h);
                     for (Bacterium b : bacteria) {
                         if (b.toBeDeleted) continue;
-                        if (b.type != 0) continue;
+                        if (b.type == 1) continue;
 //                        if (b.food > 3) continue;
                         float dist2 = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
                         if(dist2 < a.sightDistance * a.sightDistance) {
@@ -221,6 +213,61 @@ public class Form extends JFrame implements Runnable {
                             a.ty = (float)Math.sin(randomAngle) * 2;
                         }
                     }
+                } else if (a.type == 2) {
+                    Food closestFood = null;
+                    Bacterium closestFood2 = null;
+
+                    float minFoodDist = (w * w) + (h * h);
+                    int targetType = -1;
+                    for (Food f : food) {
+                        if (f.toBeDeleted) continue;
+                        float dist2 = (a.x - f.x) * (a.x - f.x) + (a.y - f.y) * (a.y - f.y);
+                        if(dist2 < a.sightDistance * a.sightDistance) {
+                            if (dist2 < minFoodDist) {
+                                minFoodDist = dist2;
+                                closestFood = f;
+                                targetType = 0;
+                            }
+                        }
+                    }
+                    for (Bacterium b : bacteria) {
+                        if (b.toBeDeleted) continue;
+                        if (b.type != 0) continue;
+//                        if (b.food > 3) continue;
+                        float dist2 = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+                        if(dist2 < a.sightDistance * a.sightDistance) {
+                            if (dist2 < minFoodDist) {
+                                minFoodDist = dist2;
+                                closestFood2 = b;
+                                targetType = 1;
+                            }
+                        }
+                    }
+                    if (closestFood != null || closestFood2 != null) {
+                        if (targetType == 0) {
+                            a.tx = closestFood.x - a.x;
+                            a.ty = closestFood.y - a.y;
+                            if (minFoodDist < FOOD_RADIUS * FOOD_RADIUS + BACTERIA_RADIUS * BACTERIA_RADIUS) {
+                                closestFood.toBeDeleted = true;
+                                a.food++;
+                            }
+                        }
+                        else if (targetType == 1) {
+                            a.tx = closestFood2.x - a.x;
+                            a.ty = closestFood2.y - a.y;
+                            if (minFoodDist < BACTERIA_RADIUS * BACTERIA_RADIUS + BACTERIA_RADIUS * BACTERIA_RADIUS) {
+                                closestFood2.toBeDeleted = true;
+                                a.food += closestFood2.food * 0.1f;
+                            }
+                        }
+                    }
+                    else {
+                        if(Math.random() < a.directionChangeRate) {
+                            double randomAngle = Math.random() * Math.PI * 2;
+                            a.tx = (float)Math.cos(randomAngle) * 2;
+                            a.ty = (float)Math.sin(randomAngle) * 2;
+                        }
+                    }
                 }
             }
         }
@@ -230,17 +277,11 @@ public class Form extends JFrame implements Runnable {
                 a.food -= 3;
                 int type = a.type;
                 if(Math.random() < 0.05) {
-                    type = (int)(Math.random() * 2);
+                    type = (int)(Math.random() * 3);
                 }
                 Bacterium b = new Bacterium(type, a.x + (float)Math.random() * 10 - 5, a.y + (float)Math.random() * 10 - 5);
                     b.speed = a.speed;
                     b.slip = a.slip;
-                /*if(Math.random() < 0.5) {
-                    if(Math.random() < 0.5) b.speed -= 0.1;
-                    else b.speed += 0.1;
-                    if(b.speed < 0.1f) b.speed = 0.1f;
-                    else if(b.speed > 10f) b.speed = 10f;
-                }*/
                 bacteria.add(b);
             }
             if(a.food <= 0) {
