@@ -5,7 +5,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.ArrayList;
-import java.util.Random;
+
 
 public class Form extends JFrame implements Runnable {
 
@@ -186,6 +186,7 @@ public class Form extends JFrame implements Runnable {
                 float minGrassDist = a.sightDistance * a.sightDistance;
                 for (Bacterium b : bacteria) {
                     if (b.getToBeDeleted()) continue;
+                    if (b.food > 2*a.food) continue;
                     if (b.type == 1) continue;
                     float dist2 = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
                     if (dist2 < minGrassDist) {
@@ -226,7 +227,10 @@ public class Form extends JFrame implements Runnable {
                 }
                 for (Bacterium b : bacteria) {
                     if (b.getToBeDeleted()) continue;
+
                     if (b.type == 2) continue;
+
+                    if(b.food > a.food) continue;
                     float dist2 = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
                     if (dist2 < minGrassDist) {
                         minGrassDist = dist2;
@@ -265,12 +269,12 @@ public class Form extends JFrame implements Runnable {
         }
         for (int i = 0; i < bacteria.size(); i++) {
             Bacterium a = bacteria.get(i);
-            a.create(bacteria);
+            if (Math.random() > 0.5) a.create(bacteria);
             if(a.food <= 0) {
                 a.setToBeDeleted();
             }
             else {
-                if(a.age % 200 == 199) {
+                if(a.age % 50 == 49) {
                     a.food -= 0.2f;
                 }
                 a.age++;

@@ -1,6 +1,6 @@
 import java.awt.*;
 
-public class Food {
+public class Grass {
 
     public int type;
     public float x;
@@ -17,7 +17,7 @@ public class Food {
             new Color(150, 50, 150)
     };
 
-    public Food(float x, float y, float size) {
+    public Grass(float x, float y, float size) {
         this.x = x;
         this.y = y;
         this.type = (int)(Math.random() * 6);
