@@ -5,6 +5,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Random;
 
 public class Form extends JFrame implements Runnable {
 
@@ -25,9 +26,9 @@ public class Form extends JFrame implements Runnable {
     private final AffineTransform IDENTITY = new AffineTransform();
 
     private ArrayList<Bacterium> bacteria = new ArrayList<>();
-    private ArrayList<Food> food = new ArrayList<>();
+    private ArrayList<Grass> grass = new ArrayList<>();
 
-    private final int FOOD_RADIUS = 5;
+    private final int GRASS_RADIUS = 5;
     private final int BACTERIA_RADIUS = 20;
     private int frame = 0;
 
@@ -45,7 +46,7 @@ public class Form extends JFrame implements Runnable {
         this.setLocation(50, 50);
         this.add(new JLabel(new ImageIcon(img)));
 
-        Bacterium a = new Bacterium(0, (float)(Math.random() * (w - 100) + 50), (float)(Math.random() * (h - 100) + 50));
+        Bacterium a = new BlueBacterium(0, (float)(Math.random() * (w - 100) + 50), (float)(Math.random() * (h - 100) + 50));
         bacteria.add(a);
 
     }
@@ -65,7 +66,7 @@ public class Form extends JFrame implements Runnable {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        for (int i = 0; i < SKIP_FRAMES; i++) logic();
+        logic();
         Graphics2D g2 = buf.createGraphics();
         g2.drawImage(img, null, 0, 0);
         g2.drawImage(graph, null, 0, 0);
@@ -99,9 +100,9 @@ public class Form extends JFrame implements Runnable {
         g2.setColor(BG);
         g2.fillRect(0, 0, w, h);
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        for (Food a : food) {
-            g2.setColor(Food.COLOR[a.type]);
-            g2.fillOval((int) a.x - FOOD_RADIUS, (int) a.y - FOOD_RADIUS, FOOD_RADIUS * 2, FOOD_RADIUS * 2);
+        for (Grass a : grass) {
+            g2.setColor(Grass.COLOR[a.type]);
+            g2.fillOval((int) (a.x - GRASS_RADIUS * a.size), (int) (a.y - GRASS_RADIUS * a.size), (int)(GRASS_RADIUS * a.size), (int)(GRASS_RADIUS * a.size));
         }
         float bacteriaScale = BACTERIA_RADIUS * 0.01f;
         for (Bacterium a : bacteria) {
@@ -111,10 +112,9 @@ public class Form extends JFrame implements Runnable {
             trans.setTransform(IDENTITY);
             trans.translate(a.x - sw, a.y - sh);
             trans.rotate(a.rotation + Math.PI / 2, sw, sh);
-            trans.scale(bacteriaScale, bacteriaScale);
+            trans.scale(a.food/20, a.food/20);
             g2.drawImage(sprites[a.type], trans, this);
         }
-//        ImageIO.write(image, "png", new File("images/T" + (frame / SKIP_FRAMES) + ".png"));
     }
 
     private void logic() {
@@ -137,7 +137,7 @@ public class Form extends JFrame implements Runnable {
             }
             double targetAngle = Math.atan2(a.ty, a.tx);
             float rotationForMotion;
-            if (targetAngle < 0) targetAngle = targetAngle + (float)(Math.PI * 2.0);
+            if (targetAngle < 0) targetAngle += (float)(Math.PI * 2.0);
             if ((Math.abs(a.rotation - targetAngle) < a.rotationSpeed) || (Math.abs(a.rotation - targetAngle) > Math.PI * 2 - a.rotationSpeed)) {
                 a.rotation = (float)targetAngle;
             }
@@ -154,159 +154,141 @@ public class Form extends JFrame implements Runnable {
                 a.sx += (float)Math.cos(rotationForMotion) * a.speed;
                 a.sy += (float)Math.sin(rotationForMotion) * a.speed;
             }
-            if(a.age > 50) {
-                if (a.type == 0) {
-                    Food closestFood = null;
-                    float minFoodDist = (w * w) + (h * h);
-                    for (Food f : food) {
-                        if (f.toBeDeleted) continue;
-                        float dist2 = (a.x - f.x) * (a.x - f.x) + (a.y - f.y) * (a.y - f.y);
-                        if(dist2 < a.sightDistance * a.sightDistance) {
-                            if (dist2 < minFoodDist) {
-                                minFoodDist = dist2;
-                                closestFood = f;
-                            }
+            boolean rand = Math.random() < 0.5;
+            if (a.type == 0) {
+                Grass closestGrass = null;
+                float minGrassDist = a.sightDistance * a.sightDistance;
+                for (Grass f : grass) {
+                    if (f.toBeDeleted) continue;
+                    float dist2 = (a.x - f.x) * (a.x - f.x) + (a.y - f.y) * (a.y - f.y);
+                    if (dist2 < minGrassDist) {
+                        minGrassDist = dist2;
+                        closestGrass = f;
+                    }
+                }
+                if (closestGrass != null) {
+                    a.tx = closestGrass.x - a.x;
+                    a.ty = closestGrass.y - a.y;
+                    if (minGrassDist < GRASS_RADIUS * GRASS_RADIUS + BACTERIA_RADIUS * BACTERIA_RADIUS) {
+                        closestGrass.toBeDeleted = true;
+                        a.food+=closestGrass.size;
+                    }
+                }
+                else {
+                    if(Math.random() < a.directionChangeRate) {
+                        double randomAngle = Math.random() * Math.PI * 2;
+                        a.tx = (float)Math.cos(randomAngle) * 2;
+                        a.ty = (float)Math.sin(randomAngle) * 2;
+                    }
+                }
+            } else if (a.type == 1) {
+                Bacterium closestBacterium = null;
+                float minGrassDist = a.sightDistance * a.sightDistance;
+                for (Bacterium b : bacteria) {
+                    if (b.getToBeDeleted()) continue;
+                    if (b.type == 1) continue;
+                    float dist2 = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+                    if (dist2 < minGrassDist) {
+                        minGrassDist = dist2;
+                        closestBacterium = b;
+                    }
+                }
+                if (closestBacterium != null) {
+                    a.tx = closestBacterium.x - a.x;
+                    a.ty = closestBacterium.y - a.y;
+                    if (minGrassDist < BACTERIA_RADIUS * BACTERIA_RADIUS + BACTERIA_RADIUS * BACTERIA_RADIUS) {
+                        if (rand) {
+                            closestBacterium.setToBeDeleted();
+                            a.food += closestBacterium.food * 0.2f;
                         }
                     }
-                    if (closestFood != null) {
-                        a.tx = closestFood.x - a.x;
-                        a.ty = closestFood.y - a.y;
-                        if (minFoodDist < FOOD_RADIUS * FOOD_RADIUS + BACTERIA_RADIUS * BACTERIA_RADIUS) {
-                            closestFood.toBeDeleted = true;
-                            a.food++;
-                        }
+                }
+                else {
+                    if(Math.random() < a.directionChangeRate) {
+                        double randomAngle = Math.random() * Math.PI * 2;
+                        a.tx = (float)Math.cos(randomAngle) * 2;
+                        a.ty = (float)Math.sin(randomAngle) * 2;
                     }
-                    else {
-                        if(Math.random() < a.directionChangeRate) {
-                            double randomAngle = Math.random() * Math.PI * 2;
-                            a.tx = (float)Math.cos(randomAngle) * 2;
-                            a.ty = (float)Math.sin(randomAngle) * 2;
-                        }
+                }
+            } else if (a.type == 2) {
+                Grass closestGrass = null;
+                Bacterium closestBacterium = null;
+                float minGrassDist = a.sightDistance * a.sightDistance;
+                int targetType = -1;
+                for (Grass f : grass) {
+                    if (f.toBeDeleted) continue;
+                    float dist2 = (a.x - f.x) * (a.x - f.x) + (a.y - f.y) * (a.y - f.y);
+                    if (dist2 < minGrassDist) {
+                        minGrassDist = dist2;
+                        closestGrass = f;
+                        targetType = 0;
                     }
-                } else if (a.type == 1) {
-                    Bacterium closestFood = null;
-                    float minFoodDist = (w * w) + (h * h);
-                    for (Bacterium b : bacteria) {
-                        if (b.toBeDeleted) continue;
-                        if (b.type == 1) continue;
-//                        if (b.food > 3) continue;
-                        float dist2 = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
-                        if(dist2 < a.sightDistance * a.sightDistance) {
-                            if (dist2 < minFoodDist) {
-                                minFoodDist = dist2;
-                                closestFood = b;
-                            }
-                        }
+                }
+                for (Bacterium b : bacteria) {
+                    if (b.getToBeDeleted()) continue;
+                    if (b.type == 2) continue;
+                    float dist2 = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+                    if (dist2 < minGrassDist) {
+                        minGrassDist = dist2;
+                        closestBacterium = b;
+                        targetType = 1;
                     }
-                    if (closestFood != null) {
-                        a.tx = closestFood.x - a.x;
-                        a.ty = closestFood.y - a.y;
-                        if (minFoodDist < BACTERIA_RADIUS * BACTERIA_RADIUS + BACTERIA_RADIUS * BACTERIA_RADIUS) {
-                            closestFood.toBeDeleted = true;
-                            a.food += closestFood.food * 0.1f;
-                        }
-                    }
-                    else {
-                        if(Math.random() < a.directionChangeRate) {
-                            double randomAngle = Math.random() * Math.PI * 2;
-                            a.tx = (float)Math.cos(randomAngle) * 2;
-                            a.ty = (float)Math.sin(randomAngle) * 2;
-                        }
-                    }
-                } else if (a.type == 2) {
-                    Food closestFood = null;
-                    Bacterium closestFood2 = null;
-
-                    float minFoodDist = (w * w) + (h * h);
-                    int targetType = -1;
-                    for (Food f : food) {
-                        if (f.toBeDeleted) continue;
-                        float dist2 = (a.x - f.x) * (a.x - f.x) + (a.y - f.y) * (a.y - f.y);
-                        if(dist2 < a.sightDistance * a.sightDistance) {
-                            if (dist2 < minFoodDist) {
-                                minFoodDist = dist2;
-                                closestFood = f;
-                                targetType = 0;
-                            }
-                        }
-                    }
-                    for (Bacterium b : bacteria) {
-                        if (b.toBeDeleted) continue;
-                        if (b.type != 0) continue;
-//                        if (b.food > 3) continue;
-                        float dist2 = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
-                        if(dist2 < a.sightDistance * a.sightDistance) {
-                            if (dist2 < minFoodDist) {
-                                minFoodDist = dist2;
-                                closestFood2 = b;
-                                targetType = 1;
-                            }
-                        }
-                    }
-                    if (closestFood != null || closestFood2 != null) {
-                        if (targetType == 0) {
-                            a.tx = closestFood.x - a.x;
-                            a.ty = closestFood.y - a.y;
-                            if (minFoodDist < FOOD_RADIUS * FOOD_RADIUS + BACTERIA_RADIUS * BACTERIA_RADIUS) {
-                                closestFood.toBeDeleted = true;
-                                a.food++;
-                            }
-                        }
-                        else if (targetType == 1) {
-                            a.tx = closestFood2.x - a.x;
-                            a.ty = closestFood2.y - a.y;
-                            if (minFoodDist < BACTERIA_RADIUS * BACTERIA_RADIUS + BACTERIA_RADIUS * BACTERIA_RADIUS) {
-                                closestFood2.toBeDeleted = true;
-                                a.food += closestFood2.food * 0.1f;
-                            }
+                }
+                if (closestGrass != null || closestBacterium != null) {
+                    if (targetType == 0) {
+                        a.tx = closestGrass.x - a.x;
+                        a.ty = closestGrass.y - a.y;
+                        if (minGrassDist < GRASS_RADIUS * GRASS_RADIUS + BACTERIA_RADIUS * BACTERIA_RADIUS) {
+                            closestGrass.toBeDeleted = true;
+                            a.food+=closestGrass.size;
                         }
                     }
                     else {
-                        if(Math.random() < a.directionChangeRate) {
-                            double randomAngle = Math.random() * Math.PI * 2;
-                            a.tx = (float)Math.cos(randomAngle) * 2;
-                            a.ty = (float)Math.sin(randomAngle) * 2;
+                        a.tx = closestBacterium.x - a.x;
+                        a.ty = closestBacterium.y - a.y;
+                        if (minGrassDist < BACTERIA_RADIUS * BACTERIA_RADIUS + BACTERIA_RADIUS * BACTERIA_RADIUS) {
+                            if (!rand) {
+                                closestBacterium.setToBeDeleted();
+                                a.food += closestBacterium.food * 0.2f;
+                            }
                         }
+                    }
+                }
+                else {
+                    if(Math.random() < a.directionChangeRate) {
+                        double randomAngle = Math.random() * Math.PI * 2;
+                        a.tx = (float)Math.cos(randomAngle) * 2;
+                        a.ty = (float)Math.sin(randomAngle) * 2;
                     }
                 }
             }
         }
         for (int i = 0; i < bacteria.size(); i++) {
             Bacterium a = bacteria.get(i);
-            if(a.food >= 6) {
-                a.food -= 3;
-                int type = a.type;
-                if(Math.random() < 0.05) {
-                    type = (int)(Math.random() * 3);
-                }
-                Bacterium b = new Bacterium(type, a.x + (float)Math.random() * 10 - 5, a.y + (float)Math.random() * 10 - 5);
-                    b.speed = a.speed;
-                    b.slip = a.slip;
-                bacteria.add(b);
-            }
+            a.create(bacteria);
             if(a.food <= 0) {
-                a.toBeDeleted = true;
+                a.setToBeDeleted();
             }
             else {
-                if(a.age % 300 == 299) {
+                if(a.age % 200 == 199) {
                     a.food -= 0.2f;
                 }
                 a.age++;
             }
-            if(a.toBeDeleted) {
+            if(a.getToBeDeleted()) {
                 bacteria.remove(i);
                 i--;
             }
         }
-        for (int i = 0; i < food.size(); i++) {
-            if(food.get(i).toBeDeleted) {
-                food.remove(i);
+        for (int i = 0; i < grass.size(); i++) {
+            if(grass.get(i).toBeDeleted) {
+                grass.remove(i);
                 i--;
             }
         }
-        if(frame % 30 == 0) {
-            Food a = new Food((float)(Math.random() * (w - 100) + 50), (float)(Math.random() * (h - 100) + 50));
-            food.add(a);
+        if(frame % 15 == 0) {
+            Grass a = new Grass((float)(Math.random() * (w - 100) + 50), (float)(Math.random() * (h - 100) + 50), (float)(4*Math.random() + 0.5));
+            grass.add(a);
         }
         frame++;
     }
